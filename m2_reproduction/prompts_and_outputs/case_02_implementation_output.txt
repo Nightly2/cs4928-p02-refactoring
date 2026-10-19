@@ -1,0 +1,165 @@
+### Refactored Implementation
+
+To decouple the random generation mechanism, implement the **Strategy Pattern** via a dedicated strategy interface (`RolloutStrategy` / `NumberGeneratorStrategy` or an `IntSupplier` abstraction) and correct the rollout percentage boundary logic.
+
+#### 1. Strategy Interface (`RolloutNumberGenerator.java`)
+
+```java
+package tv.codely.chat_rollout;
+
+@FunctionalInterface
+public interface RolloutNumberGenerator {
+    /**
+     * Generates an integer in the range [0, bound).
+     *
+     * @param bound the upper bound (exclusive)
+     * @return a pseudo-random or deterministic integer between 0 (inclusive) and bound (exclusive)
+     */
+    int nextInt(int bound);
+}
+
+```
+
+#### 2. Default Strategy (`RandomRolloutNumberGenerator.java`)
+
+```java
+package tv.codely.chat_rollout;
+
+import java.util.Random;
+
+public final class RandomRolloutNumberGenerator implements RolloutNumberGenerator {
+    private final Random random = new Random();
+
+    @Override
+    public int nextInt(int bound) {
+        return random.nextInt(bound);
+    }
+}
+
+```
+
+#### 3. Refactored `ChatController.java`
+
+```java
+package tv.codely.chat_rollout;
+
+import java.util.Objects;
+
+public final class ChatController {
+    private final int newChatRolloutPercentage;
+    private final RolloutNumberGenerator numberGenerator;
+
+    public ChatController(int newChatRolloutPercentage, RolloutNumberGenerator numberGenerator) {
+        this.newChatRolloutPercentage = newChatRolloutPercentage;
+        this.numberGenerator = Objects.requireNonNull(numberGenerator, "numberGenerator must not be null");
+    }
+
+    /**
+     * Overloaded constructor to preserve existing externally observable behavior and backward compatibility.
+     */
+    public ChatController(int newChatRolloutPercentage) {
+        this(newChatRolloutPercentage, new RandomRolloutNumberGenerator());
+    }
+
+    public String pullMessages() {
+        // Corrected comparison: nextInt(100) returns 0..99.
+        // Using '<' ensures:
+        // - 0% produces 0 values satisfying the condition (never triggers NEW chat).
+        // - 100% produces 100 values (0..99 < 100, always triggers NEW chat).
+        if (numberGenerator.nextInt(100) < newChatRolloutPercentage) {
+            return "Messages from the NEW chat system";
+        } else {
+            return "Messages from the OLD chat system";
+        }
+    }
+}
+
+```
+
+---
+
+### Unified Diff
+
+```diff
+--- a/tv/codely/chat_rollout/ChatController.java
++++ b/tv/codely/chat_rollout/ChatController.java
+@@ -1,16 +1,24 @@
+ package tv.codely.chat_rollout;
+
+-import java.util.Random;
++import java.util.Objects;
+
+ public final class ChatController {
+     private final int newChatRolloutPercentage;
++    private final RolloutNumberGenerator numberGenerator;
++
++    public ChatController(int newChatRolloutPercentage, RolloutNumberGenerator numberGenerator) {
++        this.newChatRolloutPercentage = newChatRolloutPercentage;
++        this.numberGenerator = Objects.requireNonNull(numberGenerator, "numberGenerator must not be null");
++    }
+
+     public ChatController(int newChatRolloutPercentage) {
+-        this.newChatRolloutPercentage = newChatRolloutPercentage;
++        this(newChatRolloutPercentage, new RandomRolloutNumberGenerator());
+     }
+
+     public String pullMessages() {
+-        if (new Random().nextInt(100) <= newChatRolloutPercentage) {
++        if (numberGenerator.nextInt(100) < newChatRolloutPercentage) {
+             return "Messages from the NEW chat system";
+         } else {
+             return "Messages from the OLD chat system";
+
+```
+
+---
+
+### How the Implementation Supports the Requested Changes
+
+1. **Strategy Pattern Decoupling:**
+* `RolloutNumberGenerator` acts as the Strategy interface, defining the contract for number generation.
+* `RandomRolloutNumberGenerator` encapsulates the non-deterministic `java.util.Random` behavior as the default concrete strategy.
+* `ChatController` serves as the context, delegating the decision variable generation to the strategy rather than instantiating `new Random()` directly.
+
+
+2. **Testability & Determinism:**
+* Unit tests can supply deterministic mock/stub strategies (e.g., `bound -> 42` or `bound -> 0`) via the two-argument constructor without reflection or bytecode manipulation.
+* Because `RolloutNumberGenerator` is a single-method functional interface, lambda expressions or method references can be injected directly during tests.
+
+
+3. **Rollout Boundary Correction:**
+* The original logic used `new Random().nextInt(100) <= newChatRolloutPercentage`. Because `nextInt(100)` yields integers in the range $[0, 99]$ (100 total outcomes):
+* If `newChatRolloutPercentage = 0`, the condition `nextInt(100) <= 0` evaluates to true whenever `0` is generated ($1\%$ of the time), making a $0\%$ rollout leaky.
+* If `newChatRolloutPercentage = 100`, it was always true ($100\%$), but an intermediate value like `50` resulted in $51$ possible matches ($0$ through $50$), yielding a $51\%$ rollout.
+
+
+* Changing the condition to `< newChatRolloutPercentage` ensures exact percentage mappings: $0$ matches at $0\%$, exactly $k$ matches at $k\%$, and all $100$ matches at $100\%$.
+
+
+4. **Preserved Backward Compatibility:**
+* The single-parameter constructor `ChatController(int newChatRolloutPercentage)` delegates to the strategy constructor using `RandomRolloutNumberGenerator`, preserving external API compatibility for production call sites.
+
+
+
+---
+
+### Recommended Tests to Run
+
+The following tests should be implemented and executed against this suite:
+
+* **Unit Tests (Deterministic via Stubbed Strategy):**
+* **$0\%$ Boundary Test:** Set rollout to `0`. Inject a strategy returning `0`. Verify it returns `"Messages from the OLD chat system"`.
+* **$100\%$ Boundary Test:** Set rollout to `100`. Inject a strategy returning `99`. Verify it returns `"Messages from the NEW chat system"`.
+* **Strict Inequality Boundary Checks:**
+* With rollout at `50`, inject strategy returning `49`; verify `"Messages from the NEW chat system"`.
+* With rollout at `50`, inject strategy returning `50`; verify `"Messages from the OLD chat system"`.
+
+
+
+
+* **Regression / Default Constructor Smoke Test:**
+* Instantiate `new ChatController(50)` using the single-argument constructor and invoke `pullMessages()` to verify no `NullPointerException` or unexpected exceptions occur when relying on the default strategy.
+
+
+* **Validation Test:**
+* Verify that passing `null` for `RolloutNumberGenerator` in `ChatController(int, RolloutNumberGenerator)` throws a `NullPointerException`.

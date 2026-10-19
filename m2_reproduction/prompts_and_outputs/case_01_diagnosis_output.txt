@@ -1,0 +1,106 @@
+### 1. Main Design Problem & Code Smells
+
+**Primary Problem: Data Clumps / Missing Domain Abstractions**
+The `Booking` class acts as an overly flat container that aggregates several distinct domain concepts which naturally belong together in their own composite value objects or entities:
+
+* **Customer Data Clump**:
+* Fields: `CustomerId customerId`, `CustomerName customerName`, `EmailAddress customerEmail` in `Booking`.
+
+
+* Constructor parameters: `(CustomerId customerId, CustomerName customerName, EmailAddress customerEmail, ...)`.
+
+
+
+
+* **Discount Data Clump**:
+* Fields: `DiscountType discountType`, `DiscountValue discountValue` in `Booking`.
+
+
+* Constructor parameters: `(..., DiscountType discountType, DiscountValue discountValue, ...)`.
+
+
+
+
+* **Tax Data Clump**:
+* Fields: `TaxType taxType`, `TaxValue taxValue` in `Booking`.
+
+
+* Constructor parameters: `(..., TaxType taxType, TaxValue taxValue)`.
+
+
+
+
+* **Time Range / Date Interval Data Clump**:
+* Fields: `LocalDateTime startDate`, `LocalDateTime endDate` in `Booking`.
+
+
+* Method interaction: Evaluated together in `statusFor(LocalDateTime date)`.
+
+
+
+
+
+**Associated Secondary Smells:**
+
+* **Long Parameter List:** The constructor for `Booking` accepts 11 parameters, making instantiation unwieldy and error-prone.
+
+
+* **Low Cohesion:** `Booking` has direct knowledge of customer identity details, pricing policies (discounts, taxes), and temporal scheduling rather than delegating these responsibilities to dedicated models.
+
+
+
+---
+
+### 2. Affected Software Quality Attributes
+
+* **Maintainability & Modifiability:**
+* Changes to customer-related attributes (e.g., adding a phone number or address) or tax/discount models directly force changes to the `Booking` class definition, its field declarations, and its constructor signature.
+
+
+
+
+* **Understandability / Readability:**
+* An 11-parameter constructor obscures the core responsibilities of a booking. Callers must manage and pass granular properties individually instead of passing coherent high-level concepts.
+
+
+
+
+* **Reusability:**
+* The grouping of `CustomerId`, `CustomerName`, and `EmailAddress` cannot be reused in other parts of the application (e.g., an invoice, user profile, or order context) because they are kept separate and coupled directly inside `Booking`.
+
+
+
+
+* **Robustness & Testability:**
+* Unit testing `Booking` requires instantiating 11 separate dependencies/objects even when testing unrelated behavior (such as `statusFor`).
+
+
+
+
+
+---
+
+### 3. Supported Findings vs. Assumptions & Secondary Concerns
+
+#### Supported Directly by the Code
+
+* `Booking` directly holds 11 individual fields, 8 of which naturally form pairs or triplets representing distinct concepts (`startDate`/`endDate`, `customerId`/`customerName`/`customerEmail`, `discountType`/`discountValue`, `taxType`/`taxValue`).
+
+
+* The constructor requires passing 11 arguments in a flat sequence.
+
+
+* Encapsulation is weak in the value wrapper classes (`BookingId`, `CustomerId`, `CustomerName`, `DiscountValue`, `EmailAddress`, `TaxValue`), where fields are package-private or non-final and lack behavior or accessors.
+
+
+* `statusFor(LocalDateTime date)` contains boundary logic (`date.isAfter(startDate) && date.isBefore(endDate)`) that treats exact start or end timestamps as `FINISHED` rather than `ACTIVE`.
+
+
+
+#### Assumptions / Secondary Concerns (Not Verifiable from Code Alone)
+
+* **Single Responsibility Principle (SRP) / Database Mapping:** It cannot be definitively confirmed whether `Booking` represents a domain entity, a flat persistence entity (DTO/Active Record), or an aggregate root without seeing the surrounding architectural layers.
+* **Primitive Obsession Resolution vs. Over-Engineering:** The codebase already wraps primitives into types like `DiscountValue` and `TaxValue`. However, whether wrapping single primitives into standalone classes without validation or behavior is beneficial or over-engineering depends on domain requirements not visible in the snippet.
+
+
+* **Immutability Inconsistency:** While `Booking` has `final` fields, wrapper types like `BookingId` and `CustomerId` have mutable `value` fields. It is unclear if mutability was intentional or simply incomplete implementation.

@@ -1,0 +1,30 @@
+You are assisting with a Java refactoring task.
+
+Starting code:
+
+Java
+
+package tv.codely.chat_rollout;import java.util.Random;public final class ChatController {
+    private final int newChatRolloutPercentage;
+
+    public ChatController(int newChatRolloutPercentage) {
+        this.newChatRolloutPercentage = newChatRolloutPercentage;
+    }
+
+    public String pullMessages() {
+        if (new Random().nextInt(100) <= newChatRolloutPercentage) {
+            return "Messages from the NEW chat system";
+        } else {
+            return "Messages from the OLD chat system";
+        }
+    }
+}
+Required future change: Inject a controllable pseudo-random number generator or supplier abstraction to support deterministic, repeatable execution paths and eliminate flaky/non-deterministic behavior in unit tests, while correcting the comparison threshold to properly bound rollout percentages.
+
+Target GoF pattern: Strategy Pattern
+
+Refactor the supplied code to implement the target design pattern and support the required future change.
+
+Preserve existing externally observable behaviour. Keep the changes focused on the task and avoid unrelated modifications.
+
+Return the changed source files or a unified diff. Explain how the implementation supports the requested change and identify the tests that should be run. Do not claim tests have passed unless they have actually been executed.

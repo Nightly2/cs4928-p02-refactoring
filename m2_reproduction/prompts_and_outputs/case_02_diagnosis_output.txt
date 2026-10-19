@@ -1,0 +1,83 @@
+### 1. Identified Design Problems and Code Smells
+
+* **Hardcoded Instantiation / Tight Coupling to Volatile Implementation (Violation of Dependency Inversion & Single Responsibility Principles):**
+* **Code Evidence:**
+* `new Random().nextInt(100)` inside `ChatController.pullMessages()`.
+
+
+* Hardcoded string return values directly simulating system integrations: `"Messages from the NEW chat system"` and `"Messages from the OLD chat system"`.
+
+
+
+
+* **Diagnosis:** The class instantiates its randomness generator inline and couples message retrieval directly to a random boolean condition rather than abstracting the rollout mechanism or delegating message retrieval to dedicated service abstractions.
+
+
+* **Non-Deterministic / Untestable Logic (Hidden Side Effects):**
+* **Code Evidence:**
+* `if (new Random().nextInt(100) <= newChatRolloutPercentage)` inside `pullMessages()`.
+
+
+
+
+* **Diagnosis:** Instantiating an unseeded, internal pseudo-random number generator directly inside the execution path makes the method's output non-deterministic without any seams for test control or mocking.
+
+
+* **Off-by-One Range Boundary Condition (Functional/Domain Bug):**
+* **Code Evidence:**
+* `new Random().nextInt(100) <= newChatRolloutPercentage`.
+
+
+
+
+* **Diagnosis:** `nextInt(100)` yields integers in the range `[0, 99]` (100 distinct outcomes). Using `<=` means that if `newChatRolloutPercentage` is `0`, a value of `0` returns `true`, giving a `1%` chance instead of `0%`. If `newChatRolloutPercentage` is `100`, it evaluates to `true` for all 100 possibilities (`0–99 <= 100`), but across intermediate percentages it allocates `(percentage + 1)%` probability to the new system.
+
+
+
+---
+
+### 2. Affected Software Quality Attributes
+
+* **Testability:**
+* **Connection:** The direct call to `new Random().nextInt(100)` inside `pullMessages()` prevents unit tests from asserting specific outcomes predictably. Because the source of nondeterminism is instantiated internally rather than injected, a test harness cannot seed, stub, or mock the evaluation logic.
+
+
+
+
+* **Maintainability & Extensibility (Open/Closed Principle):**
+* **Connection:** If the rollout criteria change from a pure random rollout to user-segment-based rollout, sticky sessions, or feature flags, `ChatController` must be directly edited. Furthermore, adding new chat providers or changing retrieval mechanics requires altering the controller itself.
+
+
+* **Modularity / Separation of Concerns:**
+* **Connection:** `ChatController` mixes two distinct responsibilities: routing/coordinating user chat requests and calculating rollout probability thresholds.
+
+
+
+
+* **Reliability / Correctness:**
+* **Connection:** The off-by-one comparison (`<=`) leads to skew in rollout traffic allocation. Additionally, omitting input validation on `newChatRolloutPercentage` allows values outside `[0, 100]` (e.g., negative numbers or values above 100).
+
+
+
+
+
+---
+
+### 3. Evidentiary Distinction: Code-Supported vs. Assumptions
+
+| Finding Category | Status | Details |
+| --- | --- | --- |
+| **Direct Random Instantiation** | **Supported by Code** | Directly visible via `new Random().nextInt(100)` within `pullMessages()`.
+
+ |
+| **Untestable Control Flow** | **Supported by Code** | Directly confirmed because no seam or parameter exists to control or mock the pseudo-random generator.
+
+ |
+| **Probability Boundary Mismatch** | **Supported by Code** | `nextInt(100)` produces values $0$ to $99$; `<=` introduces an off-by-one skew against expected percentage bounds.
+
+ |
+| **Missing Input Validation** | **Supported by Code** | The constructor assigns `this.newChatRolloutPercentage = newChatRolloutPercentage` without boundary assertions ($< 0$ or $> 100$).
+
+ |
+| **Inconsistent Per-User Experience** | **Secondary Assumption** | Evaluating randomness on every call to `pullMessages()` implies a single client could alternate between the old and new systems between calls; this assumes messages belong to a single continuous session, which depends on external context not provided in the snippet. |
+| **Performance Overhead of `Random**` | **Secondary Assumption** | Instantiating `new Random()` on every method invocation allocates memory and re-seeds clock state; while sub-optimal in high-throughput systems, whether it impacts performance is an assumption regarding traffic volume. |

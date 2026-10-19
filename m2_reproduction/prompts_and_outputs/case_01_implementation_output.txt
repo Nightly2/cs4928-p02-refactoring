@@ -1,0 +1,215 @@
+Here is the refactored code applying the **Builder Pattern** while preserving backwards compatibility and grouping cohesive parameters.
+
+### Refactored Source Code
+
+```java
+package tv.codely.booking;
+
+import java.time.LocalDateTime;
+
+public final class Booking {
+    private final BookingId     id;
+    private final LocalDateTime startDate;
+    private final LocalDateTime endDate;
+    private final CustomerId    customerId;
+    private final CustomerName  customerName;
+    private final EmailAddress  customerEmail;
+    private final BookingType   bookingType;
+    private final DiscountType  discountType;
+    private final DiscountValue discountValue;
+    private final TaxType       taxType;
+    private final TaxValue      taxValue;
+
+    /**
+     * Backward-compatible constructor preserving existing call sites (e.g. BookingShould.java).
+     */
+    public Booking(
+        BookingId id,
+        LocalDateTime startDate,
+        LocalDateTime endDate,
+        CustomerId customerId,
+        CustomerName customerName,
+        EmailAddress customerEmail,
+        BookingType bookingType,
+        DiscountType discountType,
+        DiscountValue discountValue,
+        TaxType taxType,
+        TaxValue taxValue
+    ) {
+        this.id            = id;
+        this.startDate     = startDate;
+        this.endDate       = endDate;
+        this.customerId    = customerId;
+        this.customerName  = customerName;
+        this.customerEmail = customerEmail;
+        this.bookingType   = bookingType;
+        this.discountType  = discountType;
+        this.discountValue = discountValue;
+        this.taxType       = taxType;
+        this.taxValue      = taxValue;
+    }
+
+    private Booking(Builder builder) {
+        this.id            = builder.id;
+        this.startDate     = builder.startDate;
+        this.endDate       = builder.endDate;
+        this.customerId    = builder.customerId;
+        this.customerName  = builder.customerName;
+        this.customerEmail = builder.customerEmail;
+        this.bookingType   = builder.bookingType;
+        this.discountType  = builder.discountType;
+        this.discountValue = builder.discountValue;
+        this.taxType       = builder.taxType;
+        this.taxValue      = builder.taxValue;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public BookingStatus statusFor(LocalDateTime date) {
+        if (date.isBefore(startDate)) {
+            return BookingStatus.NOT_STARTED;
+        }
+        if (date.isAfter(startDate) && date.isBefore(endDate)) {
+            return BookingStatus.ACTIVE;
+        }
+        return BookingStatus.FINISHED;
+    }
+
+    public static final class Builder {
+        private BookingId     id;
+        private LocalDateTime startDate;
+        private LocalDateTime endDate;
+        private CustomerId    customerId;
+        private CustomerName  customerName;
+        private EmailAddress  customerEmail;
+        private BookingType   bookingType;
+        private DiscountType  discountType;
+        private DiscountValue discountValue;
+        private TaxType       taxType;
+        private TaxValue      taxValue;
+
+        private Builder() {}
+
+        public Builder withId(BookingId id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder withDates(LocalDateTime startDate, LocalDateTime endDate) {
+            this.startDate = startDate;
+            this.endDate = endDate;
+            return this;
+        }
+
+        public Builder withStartDate(LocalDateTime startDate) {
+            this.startDate = startDate;
+            return this;
+        }
+
+        public Builder withEndDate(LocalDateTime endDate) {
+            this.endDate = endDate;
+            return this;
+        }
+
+        public Builder withCustomer(CustomerId customerId, CustomerName customerName, EmailAddress customerEmail) {
+            this.customerId = customerId;
+            this.customerName = customerName;
+            this.customerEmail = customerEmail;
+            return this;
+        }
+
+        public Builder withCustomerId(CustomerId customerId) {
+            this.customerId = customerId;
+            return this;
+        }
+
+        public Builder withCustomerName(CustomerName customerName) {
+            this.customerName = customerName;
+            return this;
+        }
+
+        public Builder withCustomerEmail(EmailAddress customerEmail) {
+            this.customerEmail = customerEmail;
+            return this;
+        }
+
+        public Builder withBookingType(BookingType bookingType) {
+            this.bookingType = bookingType;
+            return this;
+        }
+
+        public Builder withDiscount(DiscountType discountType, DiscountValue discountValue) {
+            this.discountType = discountType;
+            this.discountValue = discountValue;
+            return this;
+        }
+
+        public Builder withDiscountType(DiscountType discountType) {
+            this.discountType = discountType;
+            return this;
+        }
+
+        public Builder withDiscountValue(DiscountValue discountValue) {
+            this.discountValue = discountValue;
+            return this;
+        }
+
+        public Builder withTax(TaxType taxType, TaxValue taxValue) {
+            this.taxType = taxType;
+            this.taxValue = taxValue;
+            return this;
+        }
+
+        public Builder withTaxType(TaxType taxType) {
+            this.taxType = taxType;
+            return this;
+        }
+
+        public Builder withTaxValue(TaxValue taxValue) {
+            this.taxValue = taxValue;
+            return this;
+        }
+
+        public Booking build() {
+            return new Booking(this);
+        }
+    }
+}
+
+```
+
+---
+
+### How the Implementation Supports the Requested Changes
+
+1. **Step-by-Step Fluent Construction:**
+The static nested `Builder` class allows constructing `Booking` instances incrementally via chained `with*` methods, terminating in `.build()`.
+2. **Cohesive Parameter Grouping:**
+The builder offers composite helper methods to group conceptually related domain attributes:
+* `withDates(startDate, endDate)` groups temporal boundaries.
+* `withCustomer(customerId, customerName, customerEmail)` groups customer identity profile attributes.
+* `withDiscount(discountType, discountValue)` and `withTax(taxType, taxValue)` group pricing adjustment metadata.
+*(Fine-grained individual setters remain available for flexible partial updates).*
+
+
+3. **Full Backward Compatibility:**
+The public 11-parameter constructor is retained with identical visibility and parameter order, preventing breaking changes in existing callers such as `BookingShould.java`.
+4. **Preserved Logic & Immutability:**
+All field types, immutability (`final`), and business logic within `statusFor(LocalDateTime date)` are unchanged.
+
+---
+
+### Tests to Run
+
+To ensure the refactoring introduces no regressions and validates the new builder functionality:
+
+1. **`BookingShould.java` (Existing Suite):**
+* Run existing unit tests verifying `statusFor` logic across `NOT_STARTED`, `ACTIVE`, and `FINISHED` boundaries.
+* Confirms backward compatibility of the legacy constructor.
+
+
+2. **New Builder Verification Tests:**
+* **Equivalence Test:** Verify that an instance instantiated via `Booking.builder()` with all parameters matches an instance created using the 11-argument constructor in behavior (specifically `statusFor`).
+* **Grouping Methods Test:** Verify that composite builder methods (`withDates`, `withCustomer`, `withDiscount`, `withTax`) correctly set the respective internal fields.
