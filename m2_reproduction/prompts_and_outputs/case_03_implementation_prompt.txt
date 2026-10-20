@@ -1,0 +1,7 @@
+You are assisting with a Java refactoring task.
+Starting code: Pair.java and StudentGradeCalculator.java (the original Java source files supplied).
+Required future change: The student grade calculator must support introducing a new rule for determining eligibility for an extra grade point without requiring changes to the core grade-calculation logic.
+Target GoF pattern: Strategy.
+Refactor the supplied code to implement the target design pattern and support the required future change.
+Preserve existing externally observable behaviour. Keep the changes focused on the task and avoid unrelated modifications.
+Return the changed source files or a unified diff. Explain how the implementation supports the requested change and identify the tests that should be run. Do not claim tests have passed unless they have actually been executed.

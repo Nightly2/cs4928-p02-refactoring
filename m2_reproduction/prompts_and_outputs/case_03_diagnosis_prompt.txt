@@ -1,0 +1,8 @@
+Analyse the supplied original Java code for object-oriented design problems. Do not refactor or modify the code.
+
+1. Identify the main design problem or code smell. Name it and cite the specific classes, methods or statements that support your diagnosis.
+2. Identify the software quality attributes most directly affected, explaining the connection between each attribute and the observed code.
+3. Distinguish findings supported by the code from assumptions or possible secondary concerns.
+4. If no clear problem can be established from the supplied context, say so rather than inventing one.
+
+Return the findings in a structured format with the problem, code evidence, affected quality attributes and rationale. Do not recommend or implement a refactoring yet.

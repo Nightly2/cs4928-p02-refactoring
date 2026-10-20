@@ -1,0 +1,165 @@
+Here is the refactored code implementing the **Strategy pattern** to decouple the extra grade point eligibility rule from the core grade-calculation logic in `StudentGradeCalculator`.
+
+---
+
+### 1. New Files
+
+#### `ExtraPointRule.java`
+
+Defines the strategy interface for determining extra point eligibility.
+
+```java
+package tv.codely.student_grades;
+
+public interface ExtraPointRule {
+    boolean hasToIncreaseOneExtraPoint();
+}
+
+```
+
+#### `YearBasedExtraPointRule.java`
+
+Implements the concrete strategy encapsulating the existing year- and teacher-based rule.
+
+```java
+package tv.codely.student_grades;
+
+import java.util.AbstractMap;
+import java.util.List;
+import java.util.Map;
+
+public final class YearBasedExtraPointRule implements ExtraPointRule {
+    private final Map<Integer, List<Pair<String, Boolean>>> allYearsTeachers = Map.ofEntries(
+        new AbstractMap.SimpleImmutableEntry<>(
+            2020,
+            List.of(
+                new Pair<>("Josefina", true),
+                new Pair<>("Edonisio", true),
+                new Pair<>("Edufasio", false)
+            )
+        ),
+        new AbstractMap.SimpleImmutableEntry<>(
+            2019,
+            List.of(
+                new Pair<>("Eduarda", false),
+                new Pair<>("Abelardo", false),
+                new Pair<>("Francisca", false)
+            )
+        )
+    );
+    private final int yearToCalculate;
+
+    public YearBasedExtraPointRule(final int yearToCalculate) {
+        this.yearToCalculate = yearToCalculate;
+    }
+
+    @Override
+    public boolean hasToIncreaseOneExtraPoint() {
+        boolean hasToIncreaseOneExtraPoint = false;
+
+        for (Map.Entry<Integer, List<Pair<String, Boolean>>> yearlyTeachers : allYearsTeachers.entrySet()) {
+            if (!(yearToCalculate != yearlyTeachers.getKey())) {
+                List<Pair<String, Boolean>> teachers = yearlyTeachers.getValue();
+
+                for (Pair<String, Boolean> teacher : teachers) {
+                    if (teacher.second() != true) {
+                        continue;
+                    }
+                    hasToIncreaseOneExtraPoint = true;
+                }
+            } else {
+                continue;
+            }
+        }
+
+        return hasToIncreaseOneExtraPoint;
+    }
+}
+
+```
+
+---
+
+### 2. Refactored Source Files
+
+#### `StudentGradeCalculator.java`
+
+Delegates the extra point evaluation to the injected `ExtraPointRule` strategy, keeping core grade calculation clean and open to new rules. Backward compatibility is maintained via overloaded constructors.
+
+```java
+package tv.codely.student_grades;
+
+import java.util.List;
+
+public class StudentGradeCalculator {
+    private final ExtraPointRule extraPointRule;
+
+    public StudentGradeCalculator(final ExtraPointRule extraPointRule) {
+        this.extraPointRule = extraPointRule;
+    }
+
+    public StudentGradeCalculator(final int yearToCalculate) {
+        this.extraPointRule = new YearBasedExtraPointRule(yearToCalculate);
+    }
+
+    public float calculateGrades(final List<Pair<Integer, Float>> examsGrades, final boolean hasReachedMinimumClasses) {
+        if (!examsGrades.isEmpty()) {
+            boolean hasToIncreaseOneExtraPoint = extraPointRule.hasToIncreaseOneExtraPoint();
+
+            float gradesSum       = 0f;
+            int   gradesWeightSum = 0;
+
+            for (Pair<Integer, Float> examGrade : examsGrades) {
+                gradesSum += (examGrade.first() * examGrade.second() / 100);
+                gradesWeightSum += examGrade.first();
+            }
+
+            if (gradesWeightSum == 100) {
+                if (hasReachedMinimumClasses) {
+                    if (hasToIncreaseOneExtraPoint) {
+                        return Float.min(10f, gradesSum + 1);
+                    } else {
+                        return gradesSum;
+                    }
+                } else {
+                    return 0f;
+                }
+            } else if (gradesWeightSum > 100) {
+                return -1f;
+            } else {
+                return -2f;
+            }
+        } else {
+            return 0f;
+        }
+    }
+}
+
+```
+
+---
+
+### Explanation of How This Supports the Required Change
+
+1. **Separation of Concerns**: The rule for awarding an extra grade point has been extracted from `StudentGradeCalculator` into the `ExtraPointRule` interface and its concrete implementation (`YearBasedExtraPointRule`).
+2. **Open/Closed Principle (OCP)**: To introduce a new rule for extra point eligibility in the future, you only need to create a new class implementing `ExtraPointRule` (e.g., `AlwaysEligibleExtraPointRule`, `GpaThresholdExtraPointRule`) and inject it into `StudentGradeCalculator`. The core grade-calculation logic inside `StudentGradeCalculator` remains untouched.
+3. **Backward Compatibility**: Providing an overloaded constructor accepting `int yearToCalculate` ensures that existing client code or legacy tests instantiating `new StudentGradeCalculator(2020)` continue to work without modification.
+
+---
+
+### Tests That Should Be Run
+
+To verify that existing behavior is preserved and that new rules can be cleanly introduced, the following unit tests should be executed:
+
+1. **Year 2020 Calculation Test**: Verify that grades calculated for year 2020 correctly factor in the extra point (since teachers include active extra point flags).
+2. **Year 2019 Calculation Test**: Verify that grades calculated for year 2019 do *not* receive an extra point.
+3. **Minimum Classes Not Reached Test**: Verify that returning `0f` occurs when `hasReachedMinimumClasses` is false, regardless of grade sum or extra point rules.
+4. **Invalid Weight Sum Tests**:
+* Verify that `-1f` is returned when total exam weights exceed `100`.
+* Verify that `-2f` is returned when total exam weights are less than `100`.
+
+
+5. **Empty Grades Test**: Verify that `0f` is returned when the exam grades list is empty.
+6. **Custom Strategy Test**: Create a mock or alternative implementation of `ExtraPointRule` (e.g., returning `true` or `false` unconditionally) and verify that `StudentGradeCalculator` uses it correctly without altering core calculation logic.
+
+*(Note: Since tests were not executed in this environment, please run your test suite via your build tool, e.g., `mvn test` or `./gradlew test`, to validate execution.)*

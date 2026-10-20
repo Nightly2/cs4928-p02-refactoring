@@ -1,0 +1,34 @@
+Based on an analysis of the supplied code, here are the findings regarding the object-oriented design problems and code smells.
+
+---
+
+### 1. Main Design Problem / Code Smell
+
+* **Name:** **Primitive Obsession / Abuse of Generic Data Structures (Generic Pair Anti-Pattern)**
+* **Description:** The domain concepts of a **Teacher** (consisting of a name and a status flag) and an **Exam Grade** (consisting of a weight and a score) are not modeled as dedicated domain classes or value objects. Instead, they are genericized into `Pair<FirstType, SecondType>` containers. This forces the code to rely on generic accessor methods (`first()` and `second()`) whose semantic meaning is completely opaque outside of immediate context.
+
+
+
+### 2. Code Evidence
+
+* **Generic Pair Definition:** The `Pair` class is a generic utility container holding `first` and `second` fields with generic types.
+
+
+* **Teacher Modeling via Pair:** In `StudentGradeCalculator.java`, teachers are stored as a list of pairs `Pair<String, Boolean>`, instantiated with raw literals like `new Pair<>("Josefina", true)`. Their status is queried using the non-semantic method call `teacher.second()`.
+
+
+* **Exam Grade Modeling via Pair:** The `calculateGrades` method accepts exams as `List<Pair<Integer, Float>>`. Inside the calculation loop, fields are extracted opaquely: `examGrade.first() * examGrade.second() / 100`, where it is not explicit from the type signature which value represents the weight and which represents the score.
+
+
+
+### 3. Affected Quality Attributes & Rationale
+
+* **Maintainability & Readability:** Because domain entities lack explicit names and attributes, code readability suffers. Developers must mentally map generic accessors like `first()` and `second()` to their real-world business meanings, increasing cognitive load and the risk of introduction of errors during maintenance.
+* **Extensibility:** If the domain requirements evolve—for instance, if teachers require an ID or department, or exams require a date or description—the generic `Pair` structure cannot accommodate these changes cleanly. Refactoring would require replacing or nesting generic types across the codebase rather than simply adding fields to a dedicated class.
+
+### 4. Findings vs. Assumptions
+
+* **Supported by Code:** The concrete use of generic `Pair` objects, the absence of dedicated domain classes for teachers or exam grades, and the reliance on generic `first()`/`second()` methods are directly observable facts in the source files.
+
+
+* **Assumptions / Secondary Concerns:** The exact business meaning of the boolean value in the teacher pair (`teacher.second()`) or the specific error-handling strategy via magic return numbers (`-1f`, `-2f`) are secondary design concerns or business logic details, though the magic return values also represent a minor code smell.
