@@ -1,0 +1,23 @@
+You are assisting with a Java refactoring task.
+
+Starting code:
+
+// File: Booking.java
+// File: DateRange.java
+// File: Customer.java
+// File: Discount.java
+// File: Tax.java
+// File: BookingStatus.java
+
+Required future change: 
+1. Retain composite value objects (`DateRange`, `Customer`, `Discount`, `Tax`) directly as fields within `Booking` rather than decomposing them into primitive fields, preserving encapsulation and information hiding.
+2. Move date-interval evaluation logic to `DateRange` to resolve Feature Envy and correct the boundary condition so that an instant matching `startDate` evaluates to `BookingStatus.ACTIVE`.
+3. Support future state-dependent lifecycle extensions (such as transitions or cancellations) using the State Pattern, or encapsulate the status evaluation cleanly while maintaining full backward compatibility with existing callers of `Booking.statusFor(LocalDateTime)`.
+
+Target GoF pattern: State Pattern (or Single Responsibility Principle / Preserve Whole Object structural refactoring)
+
+Refactor the supplied code to implement the target design practice and support the required future changes.
+
+Preserve existing externally observable behaviour. Keep the changes focused on the task and avoid unrelated modifications.
+
+Return the changed source files or a unified diff. Explain how the implementation supports the requested change and identify the tests that should be run. Do not claim tests have passed unless they have actually been executed.

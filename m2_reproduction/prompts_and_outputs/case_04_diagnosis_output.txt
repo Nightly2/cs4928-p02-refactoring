@@ -1,0 +1,134 @@
+## 1. Main Design Problem & Code Smells
+
+### Primary Design Problem: Object Dissolution / Decomposition of Encapsulated Concepts (Violation of Encapsulation & Information Hiding)
+
+The primary structural defect in the design is that `Booking` accepts cohesive composite objects and value objects (`DateRange`, `Customer`, `Discount`, `Tax`) via its constructor, but immediately decomposes them into their primitive components and holds them as individual fields rather than holding the encapsulated objects themselves.
+
+**Code Evidence:**
+
+* Flattened fields in `Booking`:
+
+
+```java
+private final BookingId     id;
+private final LocalDateTime startDate;
+private final LocalDateTime endDate;
+private final CustomerId    customerId;
+private final CustomerName  customerName;
+private final EmailAddress  customerEmail;
+private final BookingType   bookingType;
+private final DiscountType  discountType;
+private final DiscountValue discountValue;
+private final TaxType       taxType;
+private final TaxValue      taxValue;
+
+```
+
+
+* Constructor unpacks encapsulated structures:
+
+
+```java
+public Booking(BookingId id, DateRange bookingDateRange, Customer customer, BookingType bookingType, Discount discount, Tax tax) {
+    this.id            = id;
+    this.startDate     = bookingDateRange.startDate();
+    this.endDate       = bookingDateRange.endDate();
+    this.customerId    = customer.id();
+    this.customerName  = customer.name();
+    this.customerEmail = customer.emailAddress();
+    this.bookingType   = bookingType;
+    this.discountType  = discount.type();
+    this.discountValue = discount.value();
+    this.taxType       = tax.type();
+    this.taxValue      = tax.value();
+}
+
+```
+
+
+
+---
+
+### Secondary Design Problem: Feature Envy / Data Class Smell
+
+Several classes exist merely as data bags with getters and no operations (`DateRange`, `Customer`, `Discount`, `Tax`). Furthermore, `Booking` queries the internal parts of `DateRange` to execute date-comparison logic inside `statusFor(LocalDateTime date)`, exhibiting **Feature Envy** of the date-range calculation.
+
+**Code Evidence:**
+
+* `DateRange` provides only accessors (`startDate()`, `endDate()`) and contains no behaviors.
+
+
+* `Booking.statusFor(LocalDateTime date)` queries both fields directly to perform range checking:
+
+
+```java
+if (date.isBefore(startDate)) {
+    return BookingStatus.NOT_STARTED;
+}
+if (date.isAfter(startDate) && date.isBefore(endDate)) {
+    return BookingStatus.ACTIVE;
+}
+return BookingStatus.FINISHED;
+
+```
+
+
+
+---
+
+## 2. Software Quality Attributes Affected
+
+* **Maintainability & Modifiability:**
+* Changes to the structure of `Customer`, `DateRange`, `Discount`, or `Tax` (e.g., adding a phone number or splitting addresses) ripple directly into the field declarations and constructor assignments of `Booking`.
+
+
+* Cohesive abstractions are dismantled upon assignment, increasing the cognitive load required to track fields that belong together.
+
+
+
+
+* **Reusability & Extensibility:**
+* Logic that inherently belongs to domain value objects (e.g., checking if a date falls within a `DateRange`) cannot be reused by other domains because it is implemented inside `Booking.statusFor()`.
+
+
+* `Customer`, `Tax`, and `Discount` are reduced to passive data holders, leaving domain logic fragmented.
+
+
+
+
+* **Robustness & Correctness:**
+* In `Booking.statusFor(LocalDateTime date)`, the boundary check `date.isAfter(startDate) && date.isBefore(endDate)` excludes the exact instant where `date.isEqual(startDate)`. If `date` is exactly `startDate`, the code falls through both conditions and returns `BookingStatus.FINISHED` instead of `BookingStatus.ACTIVE`.
+
+
+
+
+
+---
+
+## 3. Distinction: Supported Findings vs. Assumptions & Secondary Concerns
+
+### Direct Findings (Directly supported by the code)
+
+* `Booking` takes domain objects (`DateRange`, `Customer`, `Discount`, `Tax`) and unpacks them into 10 separate fields.
+
+
+* `Booking` never retains references to the actual `Customer`, `DateRange`, `Discount`, or `Tax` instances passed into its constructor.
+
+
+* Classes `Customer`, `DateRange`, `Discount`, and `Tax` have no business methods or domain rules.
+
+
+* `BookingId`, `CustomerId`, `CustomerName`, `EmailAddress`, `TaxValue`, and `DiscountValue` contain fields that lack `final` modifiers, lack accessor methods, and lack equals/hashcode overrides, making them incomplete Value Objects.
+
+
+* The boundary condition `date.isEqual(startDate)` resolves to `BookingStatus.FINISHED` due to the strict inequality checks in `Booking.statusFor`.
+
+
+
+### Assumptions & Secondary Concerns (Not provable without broader context)
+
+* **Performance/Memory Concerns:** Unpacking objects creates unnecessary references/slots per `Booking` instance, but whether this impacts performance depends on execution profiling and object lifecycles.
+* **Primitive Obsession / Value Object Design Intent:** The codebase shows clear intent toward Domain-Driven Design (DDD) by defining types like `CustomerId`, `BookingId`, etc.; however, whether these classes were intended to enforce validation (e.g., regex on `EmailAddress`, UUID checks on `BookingId`) cannot be verified without domain requirements.
+
+
+* **Immutability Intention:** The fields inside `CustomerId`, `CustomerName`, `EmailAddress`, `BookingId`, `TaxValue`, and `DiscountValue` are mutable in visibility (not declared `final`), but no setters are provided. It is ambiguous whether mutability was intentional or simply omitted by accident.

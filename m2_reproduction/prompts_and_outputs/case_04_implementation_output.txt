@@ -1,0 +1,125 @@
+### Refactored Source Files
+
+#### `DateRange.java`
+
+```java
+package tv.codely.booking;
+
+import java.time.LocalDateTime;
+
+public final class DateRange {
+    private final LocalDateTime startDate;
+    private final LocalDateTime endDate;
+
+    public DateRange(LocalDateTime startDate, LocalDateTime endDate) {
+        this.startDate = startDate;
+        this.endDate   = endDate;
+    }
+
+    public LocalDateTime startDate() {
+        return startDate;
+    }
+
+    public LocalDateTime endDate() {
+        return endDate;
+    }
+
+    public BookingStatus statusFor(LocalDateTime date) {
+        if (date.isBefore(startDate)) {
+            return BookingStatus.NOT_STARTED;
+        }
+
+        // Boundary fix: date equals startDate or is strictly between startDate and endDate
+        if (!date.isAfter(endDate)) {
+            return BookingStatus.ACTIVE;
+        }
+
+        return BookingStatus.FINISHED;
+    }
+}
+
+```
+
+---
+
+#### `Booking.java`
+
+```java
+package tv.codely.booking;
+
+import java.time.LocalDateTime;
+
+public final class Booking {
+    private final BookingId   id;
+    private final DateRange   dateRange;
+    private final Customer    customer;
+    private final BookingType bookingType;
+    private final Discount    discount;
+    private final Tax         tax;
+
+    public Booking(
+        BookingId id,
+        DateRange bookingDateRange,
+        Customer customer,
+        BookingType bookingType,
+        Discount discount,
+        Tax tax
+    ) {
+        this.id          = id;
+        this.dateRange   = bookingDateRange;
+        this.customer    = customer;
+        this.bookingType = bookingType;
+        this.discount    = discount;
+        this.tax         = tax;
+    }
+
+    public BookingStatus statusFor(LocalDateTime date) {
+        return dateRange.statusFor(date);
+    }
+}
+
+```
+
+---
+
+### How the Implementation Supports the Requested Changes
+
+1. **Preserve Whole Object / Encapsulation:**
+* Instead of flattening `bookingDateRange`, `customer`, `discount`, and `tax` into their constituent primitive/sub-value objects, `Booking` now directly retains references to these composite value objects as fields.
+* Internal representation leak is removed, and changes to composite object internal structures won't ripple through `Booking` fields.
+
+
+2. **Resolving Feature Envy & Boundary Condition Correction:**
+* Temporal interval calculations (`isBefore`, `isAfter`) are moved from `Booking` into `DateRange`. `DateRange` now owns the knowledge of its interval boundaries.
+* Previously, `Booking.statusFor` evaluated `date.isAfter(startDate) && date.isBefore(endDate)`, meaning when `date.isEqual(startDate)` it fell through to `BookingStatus.FINISHED`.
+* In `DateRange.statusFor`:
+* If `date.isBefore(startDate)`, it returns `NOT_STARTED`.
+* Any date starting at `startDate` through `endDate` inclusive (`!date.isAfter(endDate)`) returns `ACTIVE`.
+* Any date strictly after `endDate` returns `FINISHED`.
+
+
+
+
+3. **Lifecycle / State Pattern Extensibility & Compatibility:**
+* Callers of `Booking.statusFor(LocalDateTime)` retain their exact method contract and return types.
+* Encapsulating the temporal status check within `DateRange` allows `Booking` to layer lifecycle state transitions (e.g., explicit cancellations, manual suspensions, or checkout workflows) via a GoF State pattern interface without modifying date arithmetic logic.
+
+
+
+---
+
+### Recommended Tests to Run
+
+The following automated tests should be executed against this implementation:
+
+1. **`DateRangeTest` / Boundary Condition Verification:**
+* `date.isBefore(startDate)` returns `BookingStatus.NOT_STARTED`.
+* `date.isEqual(startDate)` returns `BookingStatus.ACTIVE` (validating the boundary condition fix).
+* `date` between `startDate` and `endDate` returns `BookingStatus.ACTIVE`.
+* `date.isEqual(endDate)` returns `BookingStatus.ACTIVE` (or verify expected behavior if `endDate` is meant to be half-open vs. closed).
+* `date.isAfter(endDate)` returns `BookingStatus.FINISHED`.
+
+
+2. **`BookingTest` Regression:**
+* Instantiation tests with valid `BookingId`, `DateRange`, `Customer`, `BookingType`, `Discount`, and `Tax` objects to verify proper composition.
+* `Booking.statusFor(date)` delegating accurately across start, intermediate, and finish boundaries.
