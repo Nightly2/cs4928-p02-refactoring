@@ -1,0 +1,8 @@
+Condition 0 — Original Code
+Measured logic: Booking.statusFor()
+Cyclomatic Complexity: 3
+
+Calculation:
+Base complexity = 1
+Two if statements = +2
+Total = 3
