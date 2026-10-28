@@ -1,0 +1,8 @@
+Condition 1 — Generic Prompt
+Measured logic: DefaultBookingStatusCalculator.calculate()
+Cyclomatic Complexity: 3
+
+Calculation:
+Base complexity = 1
+Two if statements = +2
+Total = 3
