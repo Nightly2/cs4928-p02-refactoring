@@ -1,0 +1,139 @@
+Here is the refactored solution applying the GoF Strategy pattern and adhering to the Open/Closed Principle (OCP).
+
+By extracting the status-calculation logic into a strategy interface (`BookingStatusCalculator`) and delegating the resolution to a registry/factory, new status-calculation rules can be introduced by simply adding new strategy classes without modifying the `Booking` class.
+
+---
+
+### 1. The Strategy Interface
+
+```java
+package tv.codely.booking;
+
+import java.time.LocalDateTime;
+
+public interface BookingStatusCalculator {
+    BookingStatus calculate(LocalDateTime date, LocalDateTime startDate, LocalDateTime endDate);
+}
+
+```
+
+---
+
+### 2. The Concrete Strategy (Existing/Default Behavior)
+
+```java
+package tv.codely.booking;
+
+import java.time.LocalDateTime;
+
+public final class StandardBookingStatusCalculator implements BookingStatusCalculator {
+
+    @Override
+    public BookingStatus calculate(LocalDateTime date, LocalDateTime startDate, LocalDateTime endDate) {
+        if (date.isBefore(startDate)) {
+            return BookingStatus.NOT_STARTED;
+        }
+
+        if (date.isAfter(startDate) && date.isBefore(endDate)) {
+            return BookingStatus.ACTIVE;
+        }
+
+        return BookingStatus.FINISHED;
+    }
+}
+
+```
+
+---
+
+### 3. The Strategy Registry / Factory
+
+To preserve the existing public constructor while allowing dynamic strategy resolution based on the `BookingType`, a registry maps booking types to their respective calculators, falling back to the standard calculator by default.
+
+```java
+package tv.codely.booking;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public final class BookingStatusCalculators {
+    private static final Map<BookingType, BookingStatusCalculator> CALCULATORS = new HashMap<>();
+
+    static {
+        // Register default or specific calculators here as needed
+        // e.g., CALCULATORS.put(BookingType.SPECIAL, new SpecialBookingStatusCalculator());
+    }
+
+    public static BookingStatusCalculator get(BookingType bookingType) {
+        BookingStatusCalculator calculator = CALCULATORS.get(bookingType);
+        if (calculator == null) {
+            return new StandardBookingStatusCalculator();
+        }
+        return calculator;
+    }
+
+    public static void register(BookingType bookingType, BookingStatusCalculator calculator) {
+        CALCULATORS.put(bookingType, calculator);
+    }
+}
+
+```
+
+---
+
+### 4. The Refactored `Booking` Class
+
+The `Booking` class now delegates status calculation to the resolved strategy, keeping its public constructor and regression-test behavior completely intact.
+
+```java
+package tv.codely.booking;
+
+import java.time.LocalDateTime;
+
+public final class Booking {
+    private final BookingId              id;
+    private final LocalDateTime          startDate;
+    private final LocalDateTime          endDate;
+    private final CustomerId             customerId;
+    private final CustomerName           customerName;
+    private final EmailAddress           customerEmail;
+    private final BookingType            bookingType;
+    private final DiscountType           discountType;
+    private final DiscountValue          discountValue;
+    private final TaxType                taxType;
+    private final TaxValue               taxValue;
+    private final BookingStatusCalculator statusCalculator;
+
+    public Booking(
+        BookingId id,
+        LocalDateTime startDate,
+        LocalDateTime endDate,
+        CustomerId customerId,
+        CustomerName customerName,
+        EmailAddress customerEmail,
+        BookingType bookingType,
+        DiscountType discountType,
+        DiscountValue discountValue,
+        TaxType taxType,
+        TaxValue taxValue
+    ) {
+        this.id               = id;
+        this.startDate        = startDate;
+        this.endDate          = endDate;
+        this.customerId       = customerId;
+        this.customerName     = customerName;
+        this.customerEmail    = customerEmail;
+        this.bookingType      = bookingType;
+        this.discountType     = discountType;
+        this.discountValue    = discountValue;
+        this.taxType          = taxType;
+        this.taxValue         = taxValue;
+        this.statusCalculator = BookingStatusCalculators.get(bookingType);
+    }
+
+    public BookingStatus statusFor(LocalDateTime date) {
+        return statusCalculator.calculate(date, startDate, endDate);
+    }
+}
+
+```

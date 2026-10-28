@@ -1,0 +1,8 @@
+Condition 2 — Constrained Prompt
+Measured logic: StandardBookingStatusCalculator.calculate()
+Cyclomatic Complexity: 3
+
+Calculation:
+Base complexity = 1
+Two if statements = +2
+Total = 3
