@@ -1,0 +1,35 @@
+You are assisting with a Java refactoring task.
+
+Starting code:
+
+File: ChatController.java
+```java
+package tv.codely.chat_rollout;
+
+import java.util.Random;
+
+public final class ChatController {
+    public static final int NEW_CHAT_ROLLOUT_PERCENTAGE = 30;
+
+    public String pullMessages() {
+        if (new Random().nextInt(100) <= NEW_CHAT_ROLLOUT_PERCENTAGE) {
+            return "Messages from the NEW chat system";
+        } else {
+            return "Messages from the OLD chat system";
+        }
+    }
+}
+
+Support a configurable, repeatable rollout mechanism that can be set deterministically in automated unit tests and adapted to different rollout rules in the future.
+
+Dependency Inversion Principle (DIP) & Seams: Eliminate the hardcoded inline instantiation of new Random().nextInt(100) inside pullMessages().
+
+Strategy Pattern / Policy Abstraction: Extract a dedicated rollout policy interface (or injectable collaborator seam) to decouple message pulling orchestration from the rollout decision algorithm.
+
+Open/Closed Principle (OCP): Allow new rollout strategies (such as deterministic test stubs, user-whitelist rollouts, or percentage rollouts) to be injected via constructor without modifying ChatController.
+
+Backward Compatibility: Provide a default no-argument constructor on ChatController that preserves the default 30% random rollout behaviour so existing callers and unit tests continue to compile and pass without modification.
+
+Refactor the supplied code to resolve these design forces and fulfill all stated constraints.
+
+Return the complete refactored source files (within package tv.codely.chat_rollout). Explain how the implementation satisfies each constraint and identify the unit tests that should be run. Do not claim tests have passed unless they have actually been executed.

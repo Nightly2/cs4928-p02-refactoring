@@ -1,0 +1,110 @@
+The primary issues with this code are:
+
+1. **Untestability & Hidden Dependency:** Instantiating `new Random()` inside the method prevents deterministic testing.
+2. **Off-by-one rollout logic:** `nextInt(100)` produces values `0` through `99`. The condition `<= 30` actually encompasses 31 values (`0` to `30`), giving a **31%** rollout instead of the intended 30%. Using `< NEW_CHAT_ROLLOUT_PERCENTAGE` correctly delivers 30 distinct values (`0` through `29`).
+3. **High Coupling:** The controller directly manages feature-flag rollout logic and message retrieval from different backends.
+
+---
+
+### Refactored Version
+
+#### 1. Decouple Randomness / Rollout via Dependency Injection
+
+Extract a feature flag or rollout supplier into a dependency so `ChatController` can be tested deterministically:
+
+```java
+package tv.codely.chat_rollout;
+
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.IntSupplier;
+
+public final class ChatController {
+    public static final int NEW_CHAT_ROLLOUT_PERCENTAGE = 30;
+
+    private final IntSupplier percentageSupplier;
+
+    public ChatController(IntSupplier percentageSupplier) {
+        this.percentageSupplier = percentageSupplier;
+    }
+
+    // Convenience default constructor using ThreadLocalRandom
+    public ChatController() {
+        this(() -> ThreadLocalRandom.current().nextInt(100));
+    }
+
+    public String pullMessages() {
+        return isNewChatEnabled()
+            ? "Messages from the NEW chat system"
+            : "Messages from the OLD chat system";
+    }
+
+    private boolean isNewChatEnabled() {
+        return percentageSupplier.getAsInt() < NEW_CHAT_ROLLOUT_PERCENTAGE;
+    }
+}
+
+```
+
+---
+
+### Clean Architecture / Strategy Pattern (Recommended for Larger Codebases)
+
+If message retrieval involves distinct service implementations rather than hardcoded strings, separate the feature toggle and chat services:
+
+```java
+package tv.codely.chat_rollout;
+
+public interface MessageService {
+    String pullMessages();
+}
+
+```
+
+```java
+package tv.codely.chat_rollout;
+
+public final class RolloutMessageService implements MessageService {
+    public static final int NEW_CHAT_ROLLOUT_PERCENTAGE = 30;
+
+    private final MessageService oldService;
+    private final MessageService newService;
+    private final RolloutDecider decider;
+
+    public RolloutMessageService(MessageService oldService, MessageService newService, RolloutDecider decider) {
+        this.oldService = oldService;
+        this.newService = newService;
+        this.decider = decider;
+    }
+
+    @Override
+    public String pullMessages() {
+        return decider.isFeatureActive(NEW_CHAT_ROLLOUT_PERCENTAGE)
+            ? newService.pullMessages()
+            : oldService.pullMessages();
+    }
+}
+
+```
+
+```java
+package tv.codely.chat_rollout;
+
+public final class ChatController {
+    private final MessageService messageService;
+
+    public ChatController(MessageService messageService) {
+        this.messageService = messageService;
+    }
+
+    public String pullMessages() {
+        return messageService.pullMessages();
+    }
+}
+
+```
+
+### Key Improvements Made
+
+* **Deterministic Unit Testing:** You can inject a fixed value (e.g., `() -> 25` for new chat, `() -> 50` for old chat) to test both paths without mocking `java.util.Random`.
+* **Accurate Percentage:** Fixed the boundary condition to `< 30` (`0`–`29`) so the probability matches the 30% constant.
+* **Performance:** Replaced `new Random()` allocation on every call with `ThreadLocalRandom.current()`.

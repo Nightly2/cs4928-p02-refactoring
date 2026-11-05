@@ -1,0 +1,131 @@
+### Refactored Source Files
+
+#### `RolloutPolicy.java`
+
+```java
+package tv.codely.chat_rollout;
+
+@FunctionalInterface
+public interface RolloutPolicy {
+    boolean isNewChatEnabled();
+}
+
+```
+
+---
+
+#### `RandomPercentageRolloutPolicy.java`
+
+```java
+package tv.codely.chat_rollout;
+
+import java.util.Random;
+
+public final class RandomPercentageRolloutPolicy implements RolloutPolicy {
+    private final int percentage;
+    private final Random random;
+
+    public RandomPercentageRolloutPolicy(int percentage) {
+        this(percentage, new Random());
+    }
+
+    // Constructor seam enabling seeded/deterministic Random instances if desired
+    public RandomPercentageRolloutPolicy(int percentage, Random random) {
+        if (percentage < 0 || percentage > 100) {
+            throw new IllegalArgumentException("Percentage must be between 0 and 100, inclusive.");
+        }
+        this.percentage = percentage;
+        this.random = random;
+    }
+
+    @Override
+    public boolean isNewChatEnabled() {
+        return random.nextInt(100) <= percentage;
+    }
+}
+
+```
+
+---
+
+#### `ChatController.java`
+
+```java
+package tv.codely.chat_rollout;
+
+import java.util.Objects;
+
+public final class ChatController {
+    public static final int NEW_CHAT_ROLLOUT_PERCENTAGE = 30;
+
+    private final RolloutPolicy rolloutPolicy;
+
+    /**
+     * Preserves backward compatibility using the default 30% random policy.
+     */
+    public ChatController() {
+        this(new RandomPercentageRolloutPolicy(NEW_CHAT_ROLLOUT_PERCENTAGE));
+    }
+
+    /**
+     * Inversion of Control constructor enabling custom or deterministic rollout strategies.
+     */
+    public ChatController(RolloutPolicy rolloutPolicy) {
+        this.rolloutPolicy = Objects.requireNonNull(rolloutPolicy, "rolloutPolicy must not be null");
+    }
+
+    public String pullMessages() {
+        if (rolloutPolicy.isNewChatEnabled()) {
+            return "Messages from the NEW chat system";
+        } else {
+            return "Messages from the OLD chat system";
+        }
+    }
+}
+
+```
+
+---
+
+### Constraint Verification
+
+* **Dependency Inversion Principle (DIP) & Seams**: `ChatController` no longer instantiates `new Random().nextInt(100)` internally. It depends entirely on the high-level abstraction `RolloutPolicy`.
+* **Strategy Pattern / Policy Abstraction**: `RolloutPolicy` encapsulates the rollout decision algorithm into a dedicated interface. `ChatController` acts as the context orchestrating the message retrieval based on the policy's evaluation.
+* **Open/Closed Principle (OCP)**: New rollout behaviors (such as user whitelisting, feature flags, or deterministic test doubles) can be introduced by implementing `RolloutPolicy` and injecting them into `ChatController` without modifying `ChatController.java`.
+* **Backward Compatibility**: The no-argument `ChatController()` constructor remains intact and delegates to `new RandomPercentageRolloutPolicy(NEW_CHAT_ROLLOUT_PERCENTAGE)`, preserving the original 30% random behavior for existing callers.
+
+---
+
+### Recommended Unit Tests
+
+The following unit tests should be implemented and executed:
+
+#### 1. `ChatControllerTest` (Deterministic Policy Verification)
+
+* **`pullMessages_returnsNewChatSystem_whenRolloutPolicyIsTrue`**:
+* Inject `() -> true` into `ChatController`.
+* Verify `pullMessages()` returns `"Messages from the NEW chat system"`.
+
+
+* **`pullMessages_returnsOldChatSystem_whenRolloutPolicyIsFalse`**:
+* Inject `() -> false` into `ChatController`.
+* Verify `pullMessages()` returns `"Messages from the OLD chat system"`.
+
+
+* **`constructor_throwsNullPointerException_whenPolicyIsNull`**:
+* Verify `new ChatController(null)` throws `NullPointerException`.
+
+
+* **`defaultConstructor_initializesSuccessfully`**:
+* Verify `new ChatController()` does not throw an exception and returns a non-null message when calling `pullMessages()`.
+
+
+
+#### 2. `RandomPercentageRolloutPolicyTest` (Policy Boundary Checks)
+
+* **`isNewChatEnabled_boundaryValues`**:
+* Test with mock or seeded `Random` returning `0`, `percentage`, and `percentage + 1` to verify boundary conditions (`<= percentage`).
+
+
+* **`constructor_rejectsInvalidPercentages`**:
+* Verify constructing with `< 0` or `> 100` throws `IllegalArgumentException`.
