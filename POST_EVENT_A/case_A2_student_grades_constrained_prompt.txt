@@ -1,0 +1,5 @@
+Refactor the code while maintaining the existing behaviour.
+
+Reduce deep nesting and improve separation of responsibilities. Keep the public API unchanged and preserve all current test behaviour.
+
+Prefer small cohesive methods and avoid unnecessary design patterns. Apply SOLID principles only where they are justified by the code.

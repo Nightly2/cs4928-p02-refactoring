@@ -1,0 +1,83 @@
+Here is the refactored version of your `StudentGradeCalculator` class.
+
+### Improvements Made:
+
+* Simplified Map Initialization: Replaced `Map.ofEntries` and `AbstractMap.SimpleImmutableEntry` with the cleaner `Map.of()` syntax.
+* Flattened Conditional Logic (Guard Clauses): Removed deep nesting in `calculateGrades()` by returning early for edge cases.
+* Streamlined Weight Sum & Teacher Checks: Replaced `reduce(Integer::sum).get()` with `.mapToInt(Pair::first).sum()`, and replaced the convoluted looping in `hasToIncreaseOneExtraPoint()` with direct map lookup and `.anyMatch()`.
+
+```java
+package tv.codely.student_grades;
+
+import java.util.List;
+import java.util.Map;
+
+public class StudentGradeCalculator {
+
+    private final Map<Integer, List<Pair<String, Boolean>>> allYearsTeachers = Map.of(
+        2020, List.of(
+            new Pair<>("Josefina", true),
+            new Pair<>("Edonisio", true),
+            new Pair<>("Edufasio", false)
+        ),
+        2019, List.of(
+            new Pair<>("Eduarda", false),
+            new Pair<>("Abelardo", false),
+            new Pair<>("Francisca", false)
+        )
+    );
+
+    private final int yearToCalculate;
+
+    public StudentGradeCalculator(final int yearToCalculate) {
+        this.yearToCalculate = yearToCalculate;
+    }
+
+    public float calculateGrades(final List<Pair<Integer, Float>> examsGrades, final boolean hasReachedMinimumClasses) {
+        if (examsGrades.isEmpty()) {
+            return 0f;
+        }
+
+        int gradesWeightSum = gradesWeightSum(examsGrades);
+        if (gradesWeightSum > 100) {
+            return -1f;
+        }
+        if (gradesWeightSum < 100) {
+            return -2f;
+        }
+
+        if (!hasReachedMinimumClasses) {
+            return 0f;
+        }
+
+        float gradesSum = gradesSum(examsGrades);
+        if (hasToIncreaseOneExtraPoint()) {
+            return Float.min(10f, gradesSum + 1);
+        }
+
+        return gradesSum;
+    }
+
+    private float gradesSum(List<Pair<Integer, Float>> examsGrades) {
+        float sum = 0f;
+        for (Pair<Integer, Float> examGrade : examsGrades) {
+            sum += (examGrade.first() * examGrade.second() / 100);
+        }
+        return sum;
+    }
+
+    private int gradesWeightSum(List<Pair<Integer, Float>> examsGrades) {
+        return examsGrades.stream()
+                .mapToInt(Pair::first)
+                .sum();
+    }
+
+    private boolean hasToIncreaseOneExtraPoint() {
+        List<Pair<String, Boolean>> teachers = allYearsTeachers.get(yearToCalculate);
+        if (teachers == null) {
+            return false;
+        }
+        return teachers.stream().anyMatch(Pair::second);
+    }
+}
+```
